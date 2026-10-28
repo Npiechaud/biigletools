@@ -2,30 +2,41 @@
 % Please edit documentation in R/biigle_delete_annotations.R
 \name{delete_one_biigle_label}
 \alias{delete_one_biigle_label}
-\title{Delete one Biigle label assignment}
+\title{Delete one BIIGLE label assignment}
 \usage{
 delete_one_biigle_label(
   id,
   type = "image",
   kind = "annotation_label",
   base_url = "https://biigle.de/api/v1",
-  login = BiigleDElogin,
-  token = BiigleDEtoken,
+  login = NULL,
+  token = NULL,
   verbose = TRUE
 )
 }
 \arguments{
-\item{id}{Numeric ID of the label assignment to delete}
+\item{id}{Numeric/integer-like ID of the label assignment to delete.}
 
-\item{type}{One of: "image", "video"}
+\item{type}{One of \code{"image"} or \code{"video"}.}
 
-\item{kind}{One of: "annotation_label", "image_label"}
+\item{kind}{One of \code{"annotation_label"} or \code{"image_label"}.}
 
-\item{verbose}{Print progress}
+\item{base_url}{BIIGLE API base URL.}
+
+\item{login}{BIIGLE login/email. If \code{NULL}, uses \code{BIIGLE_LOGIN}.}
+
+\item{token}{BIIGLE API token. If \code{NULL}, uses \code{BIIGLE_TOKEN}.}
+
+\item{verbose}{Logical; print progress message.}
 }
 \value{
-list(status, ok, text)
+A list with fields:
+\describe{
+\item{status}{HTTP status code}
+\item{ok}{Logical; \code{TRUE} for status 200/204}
+\item{text}{Response body as text (if available)}
+}
 }
 \description{
-Delete one Biigle label assignment
+Delete one BIIGLE label assignment
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/biigle_delete_annotations.R
 \name{delete_biigle_label_list}
 \alias{delete_biigle_label_list}
-\title{Delete a list of Biigle label assignments from a CSV or data.frame.}
+\title{Delete a list of BIIGLE label assignments from a CSV or data.frame}
 \usage{
 delete_biigle_label_list(
   input,
@@ -12,28 +12,40 @@ delete_biigle_label_list(
   dry_run = FALSE,
   confirm_required = TRUE,
   base_url = "https://biigle.de/api/v1",
-  login = BiigleDElogin,
-  token = BiigleDEtoken
+  login = NULL,
+  token = NULL
 )
 }
 \arguments{
-\item{input}{Either a data.frame or a path to a CSV file.}
+\item{input}{Either a data.frame or path to a CSV file.}
 
-\item{id_column}{Name of the ID column in the table. It will auto-detect:
-annotation_label_id, annotations_label_id, image_label_id}
+\item{id_column}{Name of ID column. If \code{NULL}, auto-detects one of:
+\code{"annotation_label_id"}, \code{"annotations_label_id"}, \code{"image_label_id"}.}
 
-\item{type_column}{Optional column with "image" / "video" values.}
+\item{type_column}{Optional column containing \code{"image"} / \code{"video"}.
+If missing, defaults to \code{"image"}.}
 
-\item{kind_column}{Optional column with "annotation_label" / "image_label".
-If missing it is inferred from the ID column name.}
+\item{kind_column}{Optional column containing
+\code{"annotation_label"} / \code{"image_label"}.
+If missing, inferred from \code{id_column}.}
 
-\item{dry_run}{If TRUE, do not delete anything.}
+\item{dry_run}{If \code{TRUE}, no DELETE requests are sent.}
 
-\item{confirm_required}{Require a typed confirmation "DELETE".}
+\item{confirm_required}{If \code{TRUE}, ask for typed confirmations in interactive sessions.}
+
+\item{base_url}{BIIGLE API base URL.}
+
+\item{login}{BIIGLE login/email. If \code{NULL}, uses \code{BIIGLE_LOGIN}.}
+
+\item{token}{BIIGLE API token. If \code{NULL}, uses \code{BIIGLE_TOKEN}.}
 }
 \value{
-data.frame with result per row
+\itemize{
+\item If cancelled during confirmation: \code{invisible(NULL)}
+\item If \code{dry_run = TRUE}: invisible data.frame preview of rows to delete
+\item Otherwise: data.frame with one result row per deletion attempt
+}
 }
 \description{
-Delete a list of Biigle label assignments from a CSV or data.frame.
+Delete a list of BIIGLE label assignments from a CSV or data.frame
 }

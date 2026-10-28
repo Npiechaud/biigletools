@@ -1,20 +1,28 @@
 Package: biigletools
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
+Type: Package
+Title: Helper Functions for the BIIGLE API
+Version: 0.0.1
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
-Config/roxygen2/version: 8.1.1
+    person(given = "Nicolas",
+           family = "Piechaud",
+           role = c("aut", "cre"),
+           email = "you@example.org")
+Description: Utility functions to interact with the BIIGLE API, including
+    downloading volume reports, checking labels in project label trees,
+    and deleting label assignments for images and videos.
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-Imports: 
+Depends: 
+    R (>= 4.1.0)
+Imports:
     httr,
     jsonlite,
     readr
 Suggests: 
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    devtools
 Config/testthat/edition: 3
 URL: https://github.com/Npiechaud/biigletools
 BugReports: https://github.com/Npiechaud/biigletools/issues
+Config/roxygen2/version: 8.1.1
