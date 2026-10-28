@@ -1,50 +1,23 @@
 # Report type IDs for Biigle volume reports.
-# Extend this vector as needed from:
-# https://biigle.de/doc/api/index.html
 biigle_report_types <- c(
   csv         = 3,
   image_label = 7
 )
 
-# Internal helper: get credentials from args or environment.
-# Environment variables:
-#   BIIGLE_LOGIN
-#   BIIGLE_TOKEN
-biigle_get_credentials <- function(login = NULL, token = NULL) {
-  login <- if (is.null(login) || !nzchar(login)) Sys.getenv("BIIGLE_LOGIN") else login
-  token <- if (is.null(token) || !nzchar(token)) Sys.getenv("BIIGLE_TOKEN") else token
-
-  if (!nzchar(login)) {
-    stop(
-      "Missing Biigle login. Provide `login=` or set BIIGLE_LOGIN in your environment.",
-      call. = FALSE
-    )
-  }
-  if (!nzchar(token)) {
-    stop(
-      "Missing Biigle token. Provide `token=` or set BIIGLE_TOKEN in your environment.",
-      call. = FALSE
-    )
-  }
-
-  list(login = login, token = token)
-}
-
 #' Get a Biigle volume report into R
 #'
 #' @param volume_id Biigle volume ID (numeric/integer-like).
-#' @param type Report type:
-#'   - numeric report type ID, or
-#'   - character key in `biigle_report_types` (e.g. `"csv"`, `"image_label"`).
+#' @param type Report type: numeric report type ID, or a character key in
+#'   `biigle_report_types` (e.g. `"csv"`, `"image_label"`).
 #' @param read If `TRUE` (default), read CSV file(s) into data.frame(s).
 #'   If `FALSE`, return extracted file path(s).
 #' @param all_csv If `TRUE`, return all CSV files from the archive (named list).
 #'   If `FALSE` (default), only the first CSV is returned.
 #' @param max_wait Maximum seconds to wait for report generation.
 #' @param interval Seconds between polling attempts.
-#' @param base_url Biigle API base URL. Default: `"https://biigle.de/api/v1"`.
-#' @param login Biigle login (email). If `NULL`, uses `BIIGLE_LOGIN`.
-#' @param token Biigle API token. If `NULL`, uses `BIIGLE_TOKEN`.
+#' @param base_url BIIGLE API base URL. Default: `"https://biigle.de/api/v1"`.
+#' @param login BIIGLE login/email. If `NULL`, uses `BIIGLE_LOGIN`.
+#' @param token BIIGLE API token. If `NULL`, uses `BIIGLE_TOKEN`.
 #' @param verbose If `TRUE`, print progress messages.
 #'
 #' @return
@@ -64,7 +37,6 @@ get_biigle_report <- function(volume_id,
                               login = NULL,
                               token = NULL,
                               verbose = TRUE) {
-  # ---- validate required arguments
   if (missing(volume_id) || is.null(volume_id) || !nzchar(as.character(volume_id))) {
     stop("`volume_id` is required.", call. = FALSE)
   }
@@ -78,11 +50,9 @@ get_biigle_report <- function(volume_id,
     stop("`interval` must be a single positive number.", call. = FALSE)
   }
 
-  # ---- resolve credentials
-  creds <- biigle_get_credentials(login = login, token = token)
+  creds <- .biigle_get_credentials(login = login, token = token)
   auth <- httr::authenticate(creds$login, creds$token, type = "basic")
 
-  # ---- resolve report type name -> id
   if (is.character(type)) {
     type <- trimws(type)
     if (!type %in% names(biigle_report_types)) {
@@ -96,10 +66,8 @@ get_biigle_report <- function(volume_id,
     type <- unname(biigle_report_types[[type]])
   }
 
-  # ---- request report generation
-  request_url <- paste0(base_url, "/volumes/", volume_id, "/reports")
   rp <- httr::POST(
-    url = request_url,
+    url = paste0(base_url, "/volumes/", volume_id, "/reports"),
     auth,
     httr::accept_json(),
     body = list(type = type),
@@ -111,7 +79,6 @@ get_biigle_report <- function(volume_id,
     httr::content(rp, as = "text", encoding = "UTF-8"),
     simplifyDataFrame = TRUE
   )
-
   if (is.null(report_info$id)) {
     stop("API response did not contain a report ID.", call. = FALSE)
   }
@@ -121,7 +88,6 @@ get_biigle_report <- function(volume_id,
     message("Report requested (id ", report_info$id, "). Polling until ready...")
   }
 
-  # ---- poll report endpoint until ready (HTTP 200 with zip)
   tmp_zip <- tempfile(fileext = ".zip")
   on.exit(unlink(tmp_zip), add = TRUE)
 
@@ -152,10 +118,8 @@ get_biigle_report <- function(volume_id,
     waited <- waited + interval
   }
 
-  # ---- extract csv(s)
   tmp_dir <- tempfile("biigle_report_")
   dir.create(tmp_dir)
-  # keep extracted dir only for this call unless user asks for paths
   if (isTRUE(read)) on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
 
   zip_contents <- utils::unzip(tmp_zip, list = TRUE)

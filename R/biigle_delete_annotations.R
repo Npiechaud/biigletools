@@ -3,92 +3,118 @@
 #   - annotation_label_id / annotations_label_id
 #   - image_label_id
 #
-# Intended endpoints:
-#   image-annotation-labels/{id}
-#   image-labels/{id}
-#   video-annotation-labels/{id}
-#   video-labels/{id}
-#
-# Requires credentials in environment/.Rprofile:
-#   BiigleDElogin
-#   BiigleDEtoken
+# Endpoints used:
+#   /image-annotation-labels/{id}
+#   /image-labels/{id}
+#   /video-annotation-labels/{id}
+#   /video-labels/{id}
 
-library(httr)
-library(jsonlite)
-library(readr)
+# Internal helper for authenticated DELETE request.
+.biigle_delete <- function(endpoint,
+                           base_url = "https://biigle.de/api/v1",
+                           login = NULL,
+                           token = NULL) {
+  creds <- .biigle_get_credentials(login = login, token = token)
 
-biigle_delete <- function(endpoint,
-                          base_url = "https://biigle.de/api/v1",
-                          login = BiigleDElogin,
-                          token = BiigleDEtoken) {
-  res <- DELETE(
+  res <- httr::DELETE(
     url = paste0(base_url, endpoint),
-    authenticate(login, token, type = "basic"),
-    accept_json()
+    httr::authenticate(creds$login, creds$token, type = "basic"),
+    httr::accept_json()
   )
-  
+
   list(
-    status = status_code(res),
-    ok = status_code(res) %in% c(200, 204),
-    text = tryCatch(content(res, as = "text", encoding = "UTF-8"),
-                    error = function(e) NA_character_)
+    status = httr::status_code(res),
+    ok = httr::status_code(res) %in% c(200, 204),
+    text = tryCatch(
+      httr::content(res, as = "text", encoding = "UTF-8"),
+      error = function(e) NA_character_
+    )
   )
 }
 
-
-#' Delete one Biigle label assignment
+#' Delete one BIIGLE label assignment
 #'
-#' @param id Numeric ID of the label assignment to delete
-#' @param type One of: "image", "video"
-#' @param kind One of: "annotation_label", "image_label"
-#' @param verbose Print progress
-#' @return list(status, ok, text)
+#' @param id Numeric/integer-like ID of the label assignment to delete.
+#' @param type One of `"image"` or `"video"`.
+#' @param kind One of `"annotation_label"` or `"image_label"`.
+#' @param base_url BIIGLE API base URL.
+#' @param login BIIGLE login/email. If `NULL`, uses `BIIGLE_LOGIN`.
+#' @param token BIIGLE API token. If `NULL`, uses `BIIGLE_TOKEN`.
+#' @param verbose Logical; print progress message.
+#'
+#' @return A list with fields:
+#' \describe{
+#'   \item{status}{HTTP status code}
+#'   \item{ok}{Logical; `TRUE` for status 200/204}
+#'   \item{text}{Response body as text (if available)}
+#' }
 #' @export
 delete_one_biigle_label <- function(id,
                                     type = "image",
                                     kind = "annotation_label",
                                     base_url = "https://biigle.de/api/v1",
-                                    login = BiigleDElogin,
-                                    token = BiigleDEtoken,
+                                    login = NULL,
+                                    token = NULL,
                                     verbose = TRUE) {
-  if (missing(id) || is.null(id) || is.na(id) || id == "") {
-    stop("id is required.")
+  if (missing(id) || is.null(id) || !nzchar(as.character(id))) {
+    stop("`id` is required.", call. = FALSE)
   }
-  
+
   type <- match.arg(type, c("image", "video"))
   kind <- match.arg(kind, c("annotation_label", "image_label"))
-  
+
+  id_num <- suppressWarnings(as.numeric(id))
+  if (is.na(id_num)) {
+    stop("`id` must be numeric/integer-like.", call. = FALSE)
+  }
+
   prefix <- if (type == "video") "video" else "image"
-  
+
   endpoint <- if (kind == "annotation_label") {
-    paste0("/", prefix, "-annotation-labels/", id)
+    paste0("/", prefix, "-annotation-labels/", id_num)
   } else {
-    paste0("/", prefix, "-labels/", id)
+    paste0("/", prefix, "-labels/", id_num)
   }
-  
-  res <- biigle_delete(endpoint, base_url = base_url, login = login, token = token)
-  
-  if (verbose) {
-    message("DELETE ", endpoint, " -> ", res$status, " (", if (res$ok) "OK" else "FAILED", ")")
+
+  res <- .biigle_delete(
+    endpoint = endpoint,
+    base_url = base_url,
+    login = login,
+    token = token
+  )
+
+  if (isTRUE(verbose)) {
+    message(
+      "DELETE ", endpoint, " -> ", res$status,
+      " (", if (isTRUE(res$ok)) "OK" else "FAILED", ")"
+    )
   }
-  
+
   res
 }
 
-#' Delete a list of Biigle label assignments from a CSV or data.frame.
+#' Delete a list of BIIGLE label assignments from a CSV or data.frame
 #'
-#' @param input Either a data.frame or a path to a CSV file.
-#' @param id_column Name of the ID column in the table. It will auto-detect:
-#'   annotation_label_id, annotations_label_id, image_label_id
-#' @param type_column Optional column with "image" / "video" values.
-#' @param kind_column Optional column with "annotation_label" / "image_label".
-#'   If missing it is inferred from the ID column name.
-#' @param dry_run If TRUE, do not delete anything.
-#' @param confirm_required Require a typed confirmation "DELETE".
+#' @param input Either a data.frame or path to a CSV file.
+#' @param id_column Name of ID column. If `NULL`, auto-detects one of:
+#'   `"annotation_label_id"`, `"annotations_label_id"`, `"image_label_id"`.
+#' @param type_column Optional column containing `"image"` / `"video"`.
+#'   If missing, defaults to `"image"`.
+#' @param kind_column Optional column containing
+#'   `"annotation_label"` / `"image_label"`.
+#'   If missing, inferred from `id_column`.
+#' @param dry_run If `TRUE`, no DELETE requests are sent.
+#' @param confirm_required If `TRUE`, ask for typed confirmations in interactive sessions.
+#' @param base_url BIIGLE API base URL.
+#' @param login BIIGLE login/email. If `NULL`, uses `BIIGLE_LOGIN`.
+#' @param token BIIGLE API token. If `NULL`, uses `BIIGLE_TOKEN`.
 #'
-#' @return data.frame with result per row
+#' @return
+#' - If cancelled during confirmation: `invisible(NULL)`
+#' - If `dry_run = TRUE`: invisible data.frame preview of rows to delete
+#' - Otherwise: data.frame with one result row per deletion attempt
+#'
 #' @export
-
 delete_biigle_label_list <- function(input,
                                      id_column = NULL,
                                      type_column = NULL,
@@ -96,46 +122,52 @@ delete_biigle_label_list <- function(input,
                                      dry_run = FALSE,
                                      confirm_required = TRUE,
                                      base_url = "https://biigle.de/api/v1",
-                                     login = BiigleDElogin,
-                                     token = BiigleDEtoken) {
-  
+                                     login = NULL,
+                                     token = NULL) {
+  # Resolve credentials early so user gets fast feedback
+  # (also validates BIIGLE_LOGIN / BIIGLE_TOKEN if not passed explicitly).
+  creds <- .biigle_get_credentials(login = login, token = token)
+
   # 1) Load input
   if (is.character(input) && length(input) == 1L && file.exists(input)) {
-    df <- read_csv(input, show_col_types = FALSE)
+    df <- readr::read_csv(input, show_col_types = FALSE)
   } else if (is.data.frame(input)) {
     df <- input
   } else {
-    stop("input must be a data.frame or a CSV file path.")
+    stop("`input` must be a data.frame or a CSV file path.", call. = FALSE)
   }
-  
+
   # 2) Detect ID column
   if (is.null(id_column)) {
     candidates <- c("annotation_label_id", "annotations_label_id", "image_label_id")
     found <- intersect(candidates, names(df))
     if (length(found) == 0) {
-      stop("No ID column found. Expected one of: ",
-           paste(candidates, collapse = ", "))
+      stop(
+        "No ID column found. Expected one of: ",
+        paste(candidates, collapse = ", "),
+        call. = FALSE
+      )
     }
     id_column <- found[1]
   }
-  
+
   if (!id_column %in% names(df)) {
-    stop("ID column '", id_column, "' not found.")
+    stop("ID column '", id_column, "' not found.", call. = FALSE)
   }
-  
+
   # 3) Optional columns
   if (is.null(type_column) && "type" %in% names(df)) type_column <- "type"
   if (is.null(kind_column) && "kind" %in% names(df)) kind_column <- "kind"
-  
-  # 4) Build working fields (no leading underscores)
+
+  # 4) Build working fields
   df$id_value <- trimws(as.character(df[[id_column]]))
-  
+
   if (!is.null(type_column) && type_column %in% names(df)) {
     df$item_type <- tolower(trimws(as.character(df[[type_column]])))
   } else {
     df$item_type <- "image"
   }
-  
+
   if (!is.null(kind_column) && kind_column %in% names(df)) {
     df$item_kind <- tolower(trimws(as.character(df[[kind_column]])))
   } else {
@@ -145,43 +177,75 @@ delete_biigle_label_list <- function(input,
       "image_label"
     }
   }
-  
+
   # 5) Filter invalid rows
   keep <- !is.na(df$id_value) & nzchar(df$id_value)
   df <- df[keep, , drop = FALSE]
-  
-  if (nrow(df) == 0) stop("No valid IDs to delete.")
-  
+
+  if (nrow(df) == 0) {
+    stop("No valid IDs to delete.", call. = FALSE)
+  }
+
   # Normalize type/kind
   df$item_type[!df$item_type %in% c("image", "video")] <- "image"
-  inferred_kind <- if (grepl("annotation", id_column, fixed = TRUE)) "annotation_label" else "image_label"
+  inferred_kind <- if (grepl("annotation", id_column, fixed = TRUE)) {
+    "annotation_label"
+  } else {
+    "image_label"
+  }
   df$item_kind[!df$item_kind %in% c("annotation_label", "image_label")] <- inferred_kind
-  
+
+  # Keep only numeric/integer-like IDs
+  suppressWarnings(id_num <- as.numeric(df$id_value))
+  ok_id <- !is.na(id_num)
+  if (!all(ok_id)) {
+    warning(sum(!ok_id), " row(s) dropped because ID is not numeric/integer-like.")
+    df <- df[ok_id, , drop = FALSE]
+    id_num <- id_num[ok_id]
+  }
+  if (nrow(df) == 0) {
+    stop("No numeric/integer-like IDs to delete after filtering.", call. = FALSE)
+  }
+
   # 6) Confirmation prompts
-  cat("\nYou are about to delete", nrow(df), "Biigle label assignment(s).\n")
-  cat("First IDs:", paste(head(df$id_value, 10), collapse = ", "),
-      if (nrow(df) > 10) "..." else "", "\n")
+  cat("\nYou are about to delete", nrow(df), "BIIGLE label assignment(s).\n")
+  cat(
+    "First IDs:",
+    paste(head(df$id_value, 10), collapse = ", "),
+    if (nrow(df) > 10) "..." else "",
+    "\n"
+  )
   cat("Types:", paste(unique(df$item_type), collapse = ", "), "\n")
   cat("Kinds:", paste(unique(df$item_kind), collapse = ", "), "\n\n")
-  
-  if (confirm_required) {
+
+  if (isTRUE(confirm_required)) {
+    if (!interactive()) {
+      stop(
+        "`confirm_required = TRUE` requires an interactive session. ",
+        "Set `confirm_required = FALSE` for non-interactive use.",
+        call. = FALSE
+      )
+    }
+
     ans1 <- readline("Type DELETE to confirm: ")
-    if (ans1 != "DELETE") {
+    if (!identical(ans1, "DELETE")) {
       cat("Cancelled. Nothing deleted.\n")
       return(invisible(NULL))
     }
+
     ans2 <- readline("Final confirmation, type YES: ")
-    if (toupper(ans2) != "YES") {
+    if (!identical(toupper(ans2), "YES")) {
       cat("Cancelled. Nothing deleted.\n")
       return(invisible(NULL))
     }
   }
-  
-  if (dry_run) {
+
+  if (isTRUE(dry_run)) {
     cat("Dry run enabled. No requests sent.\n")
-    return(invisible(df[, c(id_column, "item_type", "item_kind"), drop = FALSE]))
+    preview <- df[, c(id_column, "item_type", "item_kind"), drop = FALSE]
+    return(invisible(preview))
   }
-  
+
   # 7) Delete loop
   out <- data.frame(
     id = character(),
@@ -192,71 +256,48 @@ delete_biigle_label_list <- function(input,
     message = character(),
     stringsAsFactors = FALSE
   )
-  
+
   for (i in seq_len(nrow(df))) {
-    id_i <- suppressWarnings(as.numeric(df$id_value[i]))
+    id_i <- id_num[i]
     type_i <- df$item_type[i]
     kind_i <- df$item_kind[i]
-    
+
     res <- tryCatch(
       delete_one_biigle_label(
-        id = id_i, type = type_i, kind = kind_i,
-        base_url = base_url, login = login, token = token, verbose = FALSE
+        id = id_i,
+        type = type_i,
+        kind = kind_i,
+        base_url = base_url,
+        login = creds$login,
+        token = creds$token,
+        verbose = FALSE
       ),
-      error = function(e) list(status = NA_integer_, ok = FALSE, text = conditionMessage(e))
+      error = function(e) {
+        list(status = NA_integer_, ok = FALSE, text = conditionMessage(e))
+      }
     )
-    
+
     out <- rbind(
       out,
       data.frame(
-        id = df$id_value[i],
+        id = as.character(df$id_value[i]),
         type = type_i,
         kind = kind_i,
-        status = ifelse(is.null(res$status), NA_integer_, res$status),
+        status = if (is.null(res$status)) NA_integer_ else as.integer(res$status),
         ok = isTRUE(res$ok),
-        message = ifelse(is.null(res$text), "", res$text),
+        message = if (is.null(res$text)) "" else as.character(res$text),
         stringsAsFactors = FALSE
       )
     )
-    
-    message(sprintf("[%d/%d] %s (%s, %s) -> %s",
-                    i, nrow(df), df$id_value[i], type_i, kind_i,
-                    if (isTRUE(res$ok)) "DELETED" else paste("FAILED", res$status)))
+
+    message(
+      sprintf(
+        "[%d/%d] %s (%s, %s) -> %s",
+        i, nrow(df), df$id_value[i], type_i, kind_i,
+        if (isTRUE(res$ok)) "DELETED" else paste("FAILED", res$status)
+      )
+    )
   }
-  
+
   out
 }
-
-# Example usage:
-# delete_biigle_label_list("labels_to_delete.csv")
-#
-# Or with a data.frame:
-# df <- data.frame(
-#   annotation_label_id = c(12345, 12346, 12347),
-#   type = c("image", "image", "video")
-# )
-# delete_biigle_label_list(df)
-#
-# If you have a direct image_label_id column instead:
-# df2 <- data.frame(
-#   image_label_id = c(111, 222, 333),
-#   type = c("image", "image", "image")
-# )
-# delete_biigle_label_list(df2)
-
-# a second MAREANO example; how to delete the "no observation" label that were mistakenly assigned to images that have several "NGU Substrate" labels.
-# find images that habve several "NGU Substrate" labels and then delete the "No observation" label from those images
-# df_labels <- get_biigle_report(VOLUMEID, "image_label") # function to load first
-# df_labels %>% 
-#   filter(str_detect(label_hierarchy,"NGU Substrate"))  %>% 
-#   count(image_id) %>% filter(n > 1) %>% pull(image_id)  -> ids
-# # those are the labels you want to delete
-# df_labels %>% filter(image_id %in% ids) %>% 
-#   filter(str_detect(label_hierarchy,"NGU Substrate")) %>%  
-#   filter(label_name == "No observation") -> d
-# 
-# delete_biigle_label_list( d )
-
-
-
-

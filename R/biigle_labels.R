@@ -1,27 +1,3 @@
-# Internal helper to resolve credentials from args or environment.
-# Environment variables:
-#   BIIGLE_LOGIN
-#   BIIGLE_TOKEN
-.biigle_get_credentials <- function(login = NULL, token = NULL) {
-  login <- if (is.null(login) || !nzchar(login)) Sys.getenv("BIIGLE_LOGIN") else login
-  token <- if (is.null(token) || !nzchar(token)) Sys.getenv("BIIGLE_TOKEN") else token
-
-  if (!nzchar(login)) {
-    stop(
-      "Missing Biigle login. Provide `login=` or set BIIGLE_LOGIN in your environment.",
-      call. = FALSE
-    )
-  }
-  if (!nzchar(token)) {
-    stop(
-      "Missing Biigle token. Provide `token=` or set BIIGLE_TOKEN in your environment.",
-      call. = FALSE
-    )
-  }
-
-  list(login = login, token = token)
-}
-
 # Internal helper for authenticated GET + JSON parsing.
 .biigle_get <- function(endpoint,
                         base_url = "https://biigle.de/api/v1",
@@ -68,7 +44,6 @@ label_in_project <- function(project_id,
                              base_url = "https://biigle.de/api/v1",
                              login = NULL,
                              token = NULL) {
-  # --- validate input
   if (missing(project_id) || is.null(project_id) || !nzchar(as.character(project_id))) {
     stop("`project_id` is required.", call. = FALSE)
   }
@@ -76,12 +51,10 @@ label_in_project <- function(project_id,
     stop("`label` is required (ID or name).", call. = FALSE)
   }
 
-  # Determine whether label should be matched as ID or name
   label_is_id <- is.numeric(label) || (is.character(label) && grepl("^[0-9]+$", trimws(label)))
   label_id <- if (label_is_id) as.numeric(label) else NA_real_
   label_name <- if (!label_is_id) tolower(trimws(as.character(label))) else NA_character_
 
-  # --- list project label trees
   trees <- .biigle_get(
     endpoint = paste0("/projects/", project_id, "/label-trees"),
     base_url = base_url,
@@ -93,8 +66,6 @@ label_in_project <- function(project_id,
   if (nrow(trees_df) == 0) {
     return(list(found = FALSE, matches = NULL))
   }
-
-  # API shape safety: require id column
   if (!"id" %in% names(trees_df)) {
     stop("Unexpected API response: project label-tree list has no `id` column.", call. = FALSE)
   }
@@ -102,7 +73,6 @@ label_in_project <- function(project_id,
   hit_rows <- list()
   k <- 1L
 
-  # --- inspect each tree
   for (i in seq_len(nrow(trees_df))) {
     tree_id <- trees_df$id[i]
     tree_name <- if ("name" %in% names(trees_df)) trees_df$name[i] else NA_character_
@@ -132,7 +102,7 @@ label_in_project <- function(project_id,
     if (any(is_match)) {
       hit_rows[[k]] <- data.frame(
         project_id = as.character(project_id),
-        label_tree_id = labs_df$id[is_match] * 0 + tree_id, # repeat tree id per matched row
+        label_tree_id = rep(tree_id, sum(is_match)),
         label_tree_name = rep(tree_name, sum(is_match)),
         label_id = labs_df$id[is_match],
         label_name = labs_df$name[is_match],
