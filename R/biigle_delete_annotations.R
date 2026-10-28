@@ -211,7 +211,7 @@ delete_biigle_label_list <- function(input,
   cat("\nYou are about to delete", nrow(df), "BIIGLE label assignment(s).\n")
   cat(
     "First IDs:",
-    paste(head(df$id_value, 10), collapse = ", "),
+    paste(utils::head(df$id_value, 10), collapse = ", "),
     if (nrow(df) > 10) "..." else "",
     "\n"
   )
