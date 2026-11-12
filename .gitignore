@@ -6,3 +6,6 @@
 .quarto
 .Renviron
 biigletools.Rproj
+.ipynb_checkpoints/
+notebooks/**/reports/
+notebooks/**/outputs/
