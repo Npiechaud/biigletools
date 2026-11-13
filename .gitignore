@@ -6,6 +6,11 @@
 .quarto
 .Renviron
 biigletools.Rproj
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
+.env
 .ipynb_checkpoints/
 notebooks/**/reports/
 notebooks/**/outputs/

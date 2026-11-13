@@ -10,6 +10,10 @@ This package is intended to provide practical helper functions for common BIIGLE
 
 > Status: early development. Function names and interfaces may still evolve.
 
+**Python:** the same functions are available in Python in [`python/`](python/README.md).
+The [`notebooks/annotations_status`](notebooks/annotations_status/README.md) notebook makes class balance
+figures from BIIGLE annotation reports.
+
 ---
 
 ## Installation
